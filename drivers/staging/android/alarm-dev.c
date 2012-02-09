@@ -14,7 +14,6 @@
  */
 
 #include <linux/time.h>
-#include <asm/mach/time.h>
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/miscdevice.h>
