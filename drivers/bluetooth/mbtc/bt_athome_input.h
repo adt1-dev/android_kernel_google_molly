@@ -20,7 +20,7 @@
 // This is a hack that was added for debugging. It will help us know
 // whether Bemote or Molly is hung.
 // See corresponding change in "drivers/misc/aah_io.c".
-#define HACK_DEBUG_USING_LED  0
+#define HACK_DEBUG_USING_LED  1
 #endif
 
 #if HACK_DEBUG_USING_LED
