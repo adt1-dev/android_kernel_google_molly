@@ -530,13 +530,13 @@ static void aah_io_wipe_worker(struct work_struct *work)
 		}
 		pr_debug("%s: key still down after %u ms\n",
 			__func__, jiffies_to_msecs(time_down));
-		/* toggle led red and black while down
+		/* toggle led blue and black while down
 		 * to give user some feedback
 		 */
-		if (state->color == &red)
+		if (state->color == &blue)
 			state->color = &black;
 		else
-			state->color = &red;
+			state->color = &blue;
 		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
 		aah_io_led_set_rgb(state, state->color);
 
