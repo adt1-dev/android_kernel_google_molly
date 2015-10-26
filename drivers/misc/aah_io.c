@@ -171,6 +171,18 @@ static const struct led_rgb_vals red = {
 	.rgb[0] = 128, .rgb[1] = 0, .rgb[2] = 0
 };
 
+static const struct led_rgb_vals green = {
+	.rgb[0] = 0, .rgb[1] = 128, .rgb[2] = 0
+};
+
+static const struct led_rgb_vals blue = {
+	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 128
+};
+
+static const struct led_rgb_vals white = {
+	.rgb[0] = 128, .rgb[1] = 128, .rgb[2] = 128
+};
+
 static const struct led_rgb_vals black = {
 	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 0
 };
