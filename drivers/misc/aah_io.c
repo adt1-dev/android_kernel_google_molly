@@ -42,14 +42,6 @@
 #include <linux/delay.h>
 #include <linux/reboot.h>
 
-#ifndef HACK_DEBUG_USING_LED
-// Set to 1 if you want to change the LED color based on the last BTLE event.
-// This is a hack that was added for debugging. It will help us know
-// whether Bemote or Wolfie is hung.
-// See corresponding change in "drivers/bluetooth/mbt/bt_athome_input.h|c".
-#define HACK_DEBUG_USING_LED  1
-#endif
-
 MODULE_LICENSE("GPL v2");
 
 #define LP5521_PROGRAM_LENGTH		32	/* in bytes */
@@ -150,10 +142,6 @@ struct aah_io_driver_state {
 
 	/* animation mode */
 	u8 led_mode;
-
-	/* saved enable reg state at suspend, restored on resume */
-	//u8 saved_enable_reg;
-
 };
 
 /*
@@ -722,32 +710,6 @@ static void aah_io_shutdown(struct i2c_client *client)
 	aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
 }
 
-/*static int aah_io_suspend(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct aah_io_driver_state *state = i2c_get_clientdata(client);
-
-	pr_debug("%s\n", __func__);
-
-	lp5521_read(client, LP5521_REG_ENABLE, &state->saved_enable_reg);
-	lp5521_write(client, LP5521_REG_ENABLE,
-		     state->saved_enable_reg & ~LP5521_MASTER_ENABLE);
-	return 0;
-}*/
-
-/*static int aah_io_resume(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct aah_io_driver_state *state = i2c_get_clientdata(client);
-
-	pr_debug("%s\n", __func__);
-
-	lp5521_write(client, LP5521_REG_ENABLE, state->saved_enable_reg);
-	// delay for settling time
-	udelay(500);
-	return 0;
-} */
-
 static struct i2c_device_id aah_io_idtable[] = {
 	{ "aah-io", 0 },
 	{ }
@@ -755,22 +717,9 @@ static struct i2c_device_id aah_io_idtable[] = {
 
 MODULE_DEVICE_TABLE(i2c, aah_io_idtable);
 
-/*#ifdef CONFIG_PM
-
-static const struct dev_pm_ops aah_io_pm_ops = {
-	.suspend = aah_io_suspend,
-	.resume = aah_io_resume,
-};
-
-#define AAH_IO_PM_OPS (&aah_io_pm_ops)
-#else
-#define AAH_IO_PM_OPS NULL
-#endif*/
-
 static struct i2c_driver aah_io_driver = {
 	.driver = {
 		.name = "aah-io",
-		.pm = AAH_IO_PM_OPS,
 	},
 
 	.id_table = aah_io_idtable,
@@ -778,6 +727,8 @@ static struct i2c_driver aah_io_driver = {
 	.remove = __devexit_p(aah_io_remove),
 
 	.shutdown = aah_io_shutdown,
+	.suspend = NULL,		
+	.resume = NULL,
 };
 
 static int aah_io_init(void)
