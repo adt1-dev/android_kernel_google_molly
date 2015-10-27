@@ -42,14 +42,6 @@
 #include <linux/delay.h>
 #include <linux/reboot.h>
 
-#ifndef HACK_DEBUG_USING_LED
-// Set to 1 if you want to change the LED color based on the last BTLE event.
-// This is a hack that was added for debugging. It will help us know
-// whether Bemote or Wolfie is hung.
-// See corresponding change in "drivers/bluetooth/mbt/bt_athome_input.h|c".
-#define HACK_DEBUG_USING_LED  1
-#endif
-
 MODULE_LICENSE("GPL v2");
 
 #define LP5521_PROGRAM_LENGTH		32	/* in bytes */
@@ -150,15 +142,6 @@ struct aah_io_driver_state {
 
 	/* animation mode */
 	u8 led_mode;
-
-	/* saved enable reg state at suspend, restored on resume */
-	u8 saved_enable_reg;
-
-#ifdef HACK_DEBUG_USING_LED
-	struct led_rgb_vals user_requested_val;
-	struct led_rgb_vals debug_override_val;
-	bool debug_override;
-#endif
 };
 
 /*
@@ -170,6 +153,19 @@ static struct aah_io_driver_state *g_state;
 static const struct led_rgb_vals red = {
 	.rgb[0] = 128, .rgb[1] = 0, .rgb[2] = 0
 };
+
+static const struct led_rgb_vals green = {
+	.rgb[0] = 0, .rgb[1] = 128, .rgb[2] = 0
+};
+
+static const struct led_rgb_vals blue = {
+	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 128
+};
+
+static const struct led_rgb_vals white = {
+	.rgb[0] = 128, .rgb[1] = 128, .rgb[2] = 128
+};
+
 static const struct led_rgb_vals black = {
 	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 0
 };
@@ -214,18 +210,12 @@ static int aah_io_led_set_mode(struct aah_io_driver_state *state,
 	if (mode != state->led_mode) {
 		switch (mode) {
 		case AAH_LED_MODE_POWER_UP_ANIMATION:
-			lp5521_write(client,
-				     LP5521_REG_OP_MODE, LP5521_CMD_RUN);
+			lp5521_write(client, LP5521_REG_OP_MODE, LP5521_CMD_RUN);
 			state->led_mode = mode;
 			break;
 		case AAH_LED_MODE_DIRECT:
-			lp5521_write(client,
-				     LP5521_REG_OP_MODE, LP5521_CMD_DIRECT);
+			lp5521_write(client, LP5521_REG_OP_MODE, LP5521_CMD_DIRECT);
 			state->led_mode = mode;
-#ifdef HACK_DEBUG_USING_LED
-			if (state->debug_override)
-				aah_io_led_set_rgb(state, &state->debug_override_val);
-#endif
 			break;
 		default:
 			pr_err("%s: unknown mode %d\n", __func__, mode);
@@ -236,58 +226,6 @@ static int aah_io_led_set_mode(struct aah_io_driver_state *state,
 
 	return rc;
 }
-
-#ifdef HACK_DEBUG_USING_LED
-int aah_io_led_hack( uint rgb_color )
-{
-	/* no clean way to get the state so have to use a global */
-	struct aah_io_driver_state *state = g_state;
-	static uint last_color = (uint) -1;
-	int rc = 0;
-
-	if (!state)
-		return -EFAULT;
-
-	if (state->debug_override) {
-		if (rgb_color != last_color) {
-			state->debug_override_val.rgb[0] = (rgb_color >> 16) & 0xFF;
-			state->debug_override_val.rgb[1] = (rgb_color >> 8) & 0xFF;
-			state->debug_override_val.rgb[2] = (rgb_color >> 0) & 0xFF;
-			rc = aah_io_led_set_rgb(state, &state->debug_override_val);
-			if (!rc)
-				last_color = rgb_color;
-		}
-	} else {
-		/* just store the color in case the caller
-		 * invokes this before the enable
-		 */
-		if (rgb_color != last_color) {
-			state->debug_override_val.rgb[0] = (rgb_color >> 16) & 0xFF;
-			state->debug_override_val.rgb[1] = (rgb_color >> 8) & 0xFF;
-			state->debug_override_val.rgb[2] = (rgb_color >> 0) & 0xFF;
-			last_color = rgb_color;
-		}
-	}
-	return rc;
-}
-
-int aah_io_led_hack_enable(bool enable) {
-	/* no clean way to get the state so have to use a global */
-	struct aah_io_driver_state *state = g_state;
-	if (!state)
-		return -EFAULT;
-
-	if (state->debug_override != enable) {
-		state->debug_override = enable;
-		if (enable)
-			aah_io_led_set_rgb(state, &state->debug_override_val);
-		else
-			aah_io_led_set_rgb(state, &state->user_requested_val);
-	}
-	return 0;
-}
-
-#endif
 
 static int gpio_input_event(struct gpio_event_input_devs *input_devs,
 			    struct gpio_event_info *info,
@@ -542,19 +480,6 @@ static long aah_io_leddev_ioctl(struct file *file, unsigned int cmd,
 	} break;
 
 	case AAH_IO_LED_SET_RGB: {
-#ifdef HACK_DEBUG_USING_LED
-		pr_debug("%s: set rgb\n", __func__);
-		if (copy_from_user(&state->user_requested_val,
-				   (const void __user *)arg,
-				   sizeof(state->user_requested_val))) {
-			rc = -EFAULT;
-			break;
-		}
-		if (!state->debug_override) {
-			rc = aah_io_led_set_rgb(state,
-						&state->user_requested_val);
-		}
-#else
 		struct led_rgb_vals req;
 
 		pr_debug("%s: set rgb\n", __func__);
@@ -564,7 +489,6 @@ static long aah_io_leddev_ioctl(struct file *file, unsigned int cmd,
 			break;
 		}
 		rc = aah_io_led_set_rgb(state, &req);
-#endif
 	} break;
 
 	default: {
@@ -606,13 +530,13 @@ static void aah_io_wipe_worker(struct work_struct *work)
 		}
 		pr_debug("%s: key still down after %u ms\n",
 			__func__, jiffies_to_msecs(time_down));
-		/* toggle led red and black while down
+		/* toggle led blue and black while down
 		 * to give user some feedback
 		 */
-		if (state->color == &red)
+		if (state->color == &blue)
 			state->color = &black;
 		else
-			state->color = &red;
+			state->color = &blue;
 		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
 		aah_io_led_set_rgb(state, state->color);
 
@@ -786,32 +710,6 @@ static void aah_io_shutdown(struct i2c_client *client)
 	aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
 }
 
-static int aah_io_suspend(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct aah_io_driver_state *state = i2c_get_clientdata(client);
-
-	pr_debug("%s\n", __func__);
-
-	lp5521_read(client, LP5521_REG_ENABLE, &state->saved_enable_reg);
-	lp5521_write(client, LP5521_REG_ENABLE,
-		     state->saved_enable_reg & ~LP5521_MASTER_ENABLE);
-	return 0;
-}
-
-static int aah_io_resume(struct device *dev)
-{
-	struct i2c_client *client = to_i2c_client(dev);
-	struct aah_io_driver_state *state = i2c_get_clientdata(client);
-
-	pr_debug("%s\n", __func__);
-
-	lp5521_write(client, LP5521_REG_ENABLE, state->saved_enable_reg);
-	/* delay for settling time */
-	udelay(500);
-	return 0;
-}
-
 static struct i2c_device_id aah_io_idtable[] = {
 	{ "aah-io", 0 },
 	{ }
@@ -819,22 +717,9 @@ static struct i2c_device_id aah_io_idtable[] = {
 
 MODULE_DEVICE_TABLE(i2c, aah_io_idtable);
 
-#ifdef CONFIG_PM
-
-static const struct dev_pm_ops aah_io_pm_ops = {
-	.suspend = aah_io_suspend,
-	.resume = aah_io_resume,
-};
-
-#define AAH_IO_PM_OPS (&aah_io_pm_ops)
-#else
-#define AAH_IO_PM_OPS NULL
-#endif
-
 static struct i2c_driver aah_io_driver = {
 	.driver = {
 		.name = "aah-io",
-		.pm = AAH_IO_PM_OPS,
 	},
 
 	.id_table = aah_io_idtable,
@@ -842,6 +727,8 @@ static struct i2c_driver aah_io_driver = {
 	.remove = __devexit_p(aah_io_remove),
 
 	.shutdown = aah_io_shutdown,
+	.suspend = NULL,		
+	.resume = NULL,
 };
 
 static int aah_io_init(void)
