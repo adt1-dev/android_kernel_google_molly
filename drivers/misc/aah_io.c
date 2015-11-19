@@ -167,11 +167,36 @@ struct aah_io_driver_state {
  */
 static struct aah_io_driver_state *g_state;
 
+static const struct led_rgb_vals blue = {
+	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 128
+};
+
+static const struct led_rgb_vals black = {
+	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 0
+};
+
+static const struct led_rgb_vals cyan = {
+	.rgb[0] = 0, .rgb[1] = 128, .rgb[2] = 128
+};
+
+static const struct led_rgb_vals green = {
+	.rgb[0] = 0, .rgb[1] = 128, .rgb[2] = 0
+};
+
+static const struct led_rgb_vals orange = {
+	.rgb[0] = 128, .rgb[1] = 83, .rgb[2] = 0
+};
+
+static const struct led_rgb_vals purple = {
+	.rgb[0] = 128, .rgb[1] = 0, .rgb[2] = 128
+};
+
 static const struct led_rgb_vals red = {
 	.rgb[0] = 128, .rgb[1] = 0, .rgb[2] = 0
 };
-static const struct led_rgb_vals black = {
-	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 0
+
+static const struct led_rgb_vals white = {
+	.rgb[0] = 128, .rgb[1] = 128, .rgb[2] = 128
 };
 
 static struct gpio_event_direct_entry gpio_keypad_keys_map[] = {
@@ -606,13 +631,13 @@ static void aah_io_wipe_worker(struct work_struct *work)
 		}
 		pr_debug("%s: key still down after %u ms\n",
 			__func__, jiffies_to_msecs(time_down));
-		/* toggle led red and black while down
+		/* toggle led cyan and white while down
 		 * to give user some feedback
 		 */
-		if (state->color == &red)
-			state->color = &black;
+		if (state->color == &cyan)
+			state->color = &white;
 		else
-			state->color = &red;
+			state->color = &cyan;
 		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
 		aah_io_led_set_rgb(state, state->color);
 

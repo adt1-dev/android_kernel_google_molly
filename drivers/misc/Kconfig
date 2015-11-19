@@ -621,7 +621,9 @@ source "drivers/misc/tegra-profiler/Kconfig"
 config AAH_IO
 	depends on I2C && INPUT_GPIO
 	tristate "Android@Home I/O Driver"
-	default n
+	default y
+        ---help---
+        This is required to get the gpio-keys and led working on molly.
 
 config ATHOME_RADIO
 	bool "Android @home radio driver"
