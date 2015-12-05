@@ -894,7 +894,7 @@ static struct i2c_driver aah_io_driver = {
 // ------------ RED ------------
 static ssize_t red_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%x\n", red_value);
+	return sprintf(buf, "%d\n", red_value);
 }
 static ssize_t red_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -921,7 +921,7 @@ static ssize_t red_store(struct device *dev, struct device_attribute *attr, cons
 // ------------ GREEN ------------
 static ssize_t green_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%x\n", green_value);
+	return sprintf(buf, "%d\n", green_value);
 }
 static ssize_t green_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -948,7 +948,7 @@ static ssize_t green_store(struct device *dev, struct device_attribute *attr, co
 // ------------ BLUE ------------
 static ssize_t blue_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%x\n", blue_value);
+	return sprintf(buf, "%d\n", blue_value);
 }
 static ssize_t blue_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -975,7 +975,7 @@ static ssize_t blue_store(struct device *dev, struct device_attribute *attr, con
 // ------------ PULSING ------------
 static ssize_t pulsing_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%x\n", pulsing_value);
+	return sprintf(buf, "%d\n", pulsing_value);
 }
 static ssize_t pulsing_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
