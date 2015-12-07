@@ -187,8 +187,12 @@ static const struct led_rgb_vals color_black = {
 	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 0
 };
 
-static const struct led_rgb_vals color_red = {
-	.rgb[0] = 128, .rgb[1] = 0, .rgb[2] = 0
+static const struct led_rgb_vals color_cyan = {
+	.rgb[0] = 0, .rgb[1] = 255, .rgb[2] = 255
+};
+
+static const struct led_rgb_vals color_white = {
+	.rgb[0] = 255, .rgb[1] = 255, .rgb[2] = 255
 };
 
 static struct led_rgb_vals color_custom = {
@@ -198,8 +202,8 @@ static struct led_rgb_vals color_custom = {
 
 /* mollyled initializations */
 static u32 red_value = 0;
-static u32 green_value = 0;
-static u32 blue_value = 0;
+static u32 green_value = 255;
+static u32 blue_value = 255;
 static u32 pulsing_value = 1;
 
 static struct gpio_event_direct_entry gpio_keypad_keys_map[] = {
@@ -533,6 +537,10 @@ static long aah_io_leddev_ioctl(struct file *file, unsigned int cmd,
 		if (pulsing_value == 1)
 		{
 			aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+		} else {
+			state->color = &color_custom;
+			aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+			aah_io_led_set_rgb(state, state->color);
 		}
 
 		/* reregister the gpio_event as a key if a code is provided. */
@@ -637,13 +645,13 @@ static void aah_io_wipe_worker(struct work_struct *work)
 		}
 		pr_debug("%s: key still down after %u ms\n",
 			__func__, jiffies_to_msecs(time_down));
-		/* toggle led red and black while down
+		/* toggle led cyan and white while down
 		 * to give user some feedback
 		 */
-		if (state->color == &color_red)
-			state->color = &color_black;
+		if (state->color == &color_cyan)
+			state->color = &color_white;
 		else
-			state->color = &color_red;
+			state->color = &color_cyan;
 		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
 		aah_io_led_set_rgb(state, state->color);
 
@@ -658,6 +666,10 @@ static void aah_io_wipe_worker(struct work_struct *work)
 		if (pulsing_value == 1)
 		{
 			aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+		} else {
+			state->color = &color_custom;
+			aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+			aah_io_led_set_rgb(state, state->color);
 		}
 	}
 }
@@ -807,6 +819,10 @@ static int __devexit aah_io_remove(struct i2c_client *client)
 	if (pulsing_value == 1)
 	{
 		aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+	} else {
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
 	}
 
 	/* cleanup our state and get out. */
@@ -823,6 +839,10 @@ static void aah_io_shutdown(struct i2c_client *client)
 	if (pulsing_value == 1)
 	{
 		aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+	} else {
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
 	}
 }
 
