@@ -42,6 +42,20 @@
 #include <linux/delay.h>
 #include <linux/reboot.h>
 
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/device.h>
+#include <linux/platform_device.h>
+#include <linux/spinlock.h>
+#include <linux/delay.h>
+#include <linux/io.h>
+#include <linux/slab.h>
+#include <linux/random.h>
+#include <linux/fs.h>
+#include <linux/syscalls.h>
+#include <linux/buffer_head.h>
+
 #ifndef HACK_DEBUG_USING_LED
 // Set to 1 if you want to change the LED color based on the last BTLE event.
 // This is a hack that was added for debugging. It will help us know
@@ -51,6 +65,8 @@
 #endif
 
 MODULE_LICENSE("GPL v2");
+
+#define MOLLYLED_INTERFACE_NAME		"molly-led"
 
 #define LP5521_PROGRAM_LENGTH		32	/* in bytes */
 
@@ -114,9 +130,9 @@ MODULE_LICENSE("GPL v2");
 /* Status */
 #define LP5521_EXT_CLK_USED		0x08
 
-#define WIPE_WORKER_DELAY_MS 100
-#define WIPE_TIMEOUT_SECS 10
-#define RESET_TIMEOUT_SECS 10
+#define WIPE_WORKER_DELAY_MS		100
+#define WIPE_TIMEOUT_SECS		10
+#define RESET_TIMEOUT_SECS		10
 
 struct aah_io_driver_state {
 	struct aah_io_platform_data *pdata;
@@ -167,12 +183,28 @@ struct aah_io_driver_state {
  */
 static struct aah_io_driver_state *g_state;
 
-static const struct led_rgb_vals red = {
-	.rgb[0] = 128, .rgb[1] = 0, .rgb[2] = 0
-};
-static const struct led_rgb_vals black = {
+static const struct led_rgb_vals color_black = {
 	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 0
 };
+
+static const struct led_rgb_vals color_cyan = {
+	.rgb[0] = 0, .rgb[1] = 255, .rgb[2] = 255
+};
+
+static const struct led_rgb_vals color_white = {
+	.rgb[0] = 255, .rgb[1] = 255, .rgb[2] = 255
+};
+
+static struct led_rgb_vals color_custom = {
+	.rgb[0] = 0, .rgb[1] = 0, .rgb[2] = 0
+};
+
+
+/* mollyled initializations */
+static u32 red_value = 0;
+static u32 green_value = 255;
+static u32 blue_value = 255;
+static u32 pulsing_value = 1;
 
 static struct gpio_event_direct_entry gpio_keypad_keys_map[] = {
 	{
@@ -502,7 +534,14 @@ static long aah_io_leddev_ioctl(struct file *file, unsigned int cmd,
 		destroy_workqueue(state->workq);
 		state->workq = NULL;
 
-		aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+		if (pulsing_value == 1)
+		{
+			aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+		} else {
+			state->color = &color_custom;
+			aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+			aah_io_led_set_rgb(state, state->color);
+		}
 
 		/* reregister the gpio_event as a key if a code is provided. */
 		if (state->pdata->key_code) {
@@ -600,19 +639,19 @@ static void aah_io_wipe_worker(struct work_struct *work)
 		if (time_down >
 		    msecs_to_jiffies(WIPE_TIMEOUT_SECS * 1000)) {
 			pr_info("%s: key down more than %u seconds,"
-				" starting recovery to wipe data\n",
+				" rebooting\n",
 				__func__, WIPE_TIMEOUT_SECS);
-			kernel_restart("recovery:wipe_data");
+			kernel_restart("");
 		}
 		pr_debug("%s: key still down after %u ms\n",
 			__func__, jiffies_to_msecs(time_down));
-		/* toggle led red and black while down
+		/* toggle led cyan and white while down
 		 * to give user some feedback
 		 */
-		if (state->color == &red)
-			state->color = &black;
+		if (state->color == &color_cyan)
+			state->color = &color_white;
 		else
-			state->color = &red;
+			state->color = &color_cyan;
 		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
 		aah_io_led_set_rgb(state, state->color);
 
@@ -624,7 +663,14 @@ static void aah_io_wipe_worker(struct work_struct *work)
 		/* Switch back to power up animation mode as
 		 * device continues to boot.
 		 */
-		aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+		if (pulsing_value == 1)
+		{
+			aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+		} else {
+			state->color = &color_custom;
+			aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+			aah_io_led_set_rgb(state, state->color);
+		}
 	}
 }
 
@@ -691,7 +737,7 @@ static int aah_io_probe(struct i2c_client *client,
 
 	/* Do this before registering the devices */
 	state->workq = create_singlethread_workqueue("aah_io_worker");
-	state->color = &black;
+	state->color = &color_black;
 	INIT_DELAYED_WORK(&state->dwork, aah_io_wipe_worker);
 
 	/* Hook up all of the state structures to each other. */
@@ -770,7 +816,14 @@ static int __devexit aah_io_remove(struct i2c_client *client)
 	/* Switch back to boot animation mode before we clean out our state and
 	 * finish unloading the driver.
 	 */
-	aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+	if (pulsing_value == 1)
+	{
+		aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+	} else {
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
+	}
 
 	/* cleanup our state and get out. */
 	cleanup_driver_state(state);
@@ -783,7 +836,14 @@ static void aah_io_shutdown(struct i2c_client *client)
 	struct aah_io_driver_state *state = i2c_get_clientdata(client);
 
 	/* Switch back to power up animation mode as device reboots. */
-	aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+	if (pulsing_value == 1)
+	{
+		aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+	} else {
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
+	}
 }
 
 static int aah_io_suspend(struct device *dev)
@@ -844,15 +904,185 @@ static struct i2c_driver aah_io_driver = {
 	.shutdown = aah_io_shutdown,
 };
 
+//
+// Here we start development on the aah-io/mollyled hybrid driver
+// brought to you by your friendly neighborhood r3pwn
+//
+
+// ------------ START ATTRIBUTE SHOW/STORE FUNCTIONS ------------
+
+// ------------ RED ------------
+static ssize_t red_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", red_value);
+}
+static ssize_t red_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long red_store_val;
+	struct aah_io_driver_state *state = g_state;
+	if (strict_strtoul(buf, 10, &red_store_val) < 0)
+		return -EINVAL;
+	if (red_store_val >= 0 && red_store_val <= 255)
+	{
+		red_value = red_store_val;
+		color_custom.rgb[0] = red_value;
+	} else {
+		return -EINVAL;
+	}
+	if (pulsing_value == 0)
+	{
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
+	}
+	return count;
+}
+
+// ------------ GREEN ------------
+static ssize_t green_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", green_value);
+}
+static ssize_t green_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long green_store_val;
+	struct aah_io_driver_state *state = g_state;
+	if (strict_strtoul(buf, 10, &green_store_val) < 0)
+		return -EINVAL;
+	if (green_store_val >= 0 && green_store_val <= 255)
+	{
+		green_value = green_store_val;
+		color_custom.rgb[1] = green_value;
+	} else {
+		return -EINVAL;
+	}
+	if (pulsing_value == 0)
+	{
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
+	}
+	return count;
+}
+
+// ------------ BLUE ------------
+static ssize_t blue_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", blue_value);
+}
+static ssize_t blue_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long blue_store_val;
+	struct aah_io_driver_state *state = g_state;
+	if (strict_strtoul(buf, 10, &blue_store_val) < 0)
+		return -EINVAL;
+	if (blue_store_val >= 0 && blue_store_val <= 255)
+	{
+		blue_value = blue_store_val;
+		color_custom.rgb[2] = blue_value;
+	} else {
+		return -EINVAL;
+	}
+	if (pulsing_value == 0)
+	{
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
+	}
+	return count;
+}
+
+// ------------ PULSING ------------
+static ssize_t pulsing_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", pulsing_value);
+}
+static ssize_t pulsing_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long pulsing_store_val;
+	struct aah_io_driver_state *state = g_state;
+	color_custom.rgb[0] = red_value;
+	color_custom.rgb[1] = green_value;
+	color_custom.rgb[2] = blue_value;
+
+	if (strict_strtoul(buf, 10, &pulsing_store_val) < 0)
+		return -EINVAL;
+	if (pulsing_store_val == 0)
+	{
+		state->color = &color_custom;
+		aah_io_led_set_mode(state, AAH_LED_MODE_DIRECT);
+		aah_io_led_set_rgb(state, state->color);
+	} else if (pulsing_store_val == 1) {
+		aah_io_led_set_mode(state, AAH_LED_MODE_POWER_UP_ANIMATION);
+	} else {
+		return -EINVAL;	
+	}
+	pulsing_value = pulsing_store_val;
+	return count;
+}
+
+static DEVICE_ATTR(red, S_IWUSR | S_IRUGO, red_show, red_store);
+static DEVICE_ATTR(green, S_IWUSR | S_IRUGO, green_show, green_store);
+static DEVICE_ATTR(blue, S_IWUSR | S_IRUGO, blue_show, blue_store);
+static DEVICE_ATTR(pulsing, S_IWUSR | S_IRUGO, pulsing_show, pulsing_store);
+
+// ------------ END ATTRIBUTE SHOW/STORE FUNCTIONS ------------
+static struct attribute *mollyled_attributes[] = {
+	&dev_attr_red.attr,
+	&dev_attr_blue.attr,
+	&dev_attr_green.attr,
+	&dev_attr_pulsing.attr,
+	NULL
+};
+
+static const struct attribute_group mollyled_attribute_group = {
+	.attrs = mollyled_attributes,
+};
+
+static int __init molly_led_probe(struct platform_device *pdev)
+{
+	int err;
+	printk(KERN_INFO "%s : molly-led init\n", __func__);
+	err = sysfs_create_group(&pdev->dev.kobj, &mollyled_attribute_group);
+	if (err < 0)
+		printk(KERN_ERR "%s: cant create attribute file\n", __func__);
+	return err;
+}
+
+static int __devexit molly_led_interface_remove(struct platform_device *pdev)
+{
+	return 0;
+}
+
+static struct platform_driver molly_led_driver __refdata = {
+	.probe  = molly_led_probe,
+	.remove = __devexit_p(molly_led_interface_remove),
+	.driver = {
+		.name = MOLLYLED_INTERFACE_NAME,
+		.owner = THIS_MODULE,
+	},
+};
+
+static struct platform_device molly_led_device = {
+	.name = "molly-led",
+	.id = -1,
+};
+
 static int aah_io_init(void)
 {
+	platform_device_register(&molly_led_device);
+	platform_driver_register(&molly_led_driver);
 	return i2c_add_driver(&aah_io_driver);
 }
 
 static void aah_io_exit(void)
 {
 	i2c_del_driver(&aah_io_driver);
+	platform_driver_unregister(&molly_led_driver);
 }
 
 module_init(aah_io_init);
 module_exit(aah_io_exit);
+
+MODULE_DESCRIPTION("Molly LED and GPIO driver");
+MODULE_AUTHOR("r3pwn <wickett06@gmail.com>");
