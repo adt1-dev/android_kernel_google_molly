@@ -318,6 +318,12 @@ config MACH_MOLLY
        help
          Support for Molly device
 
+config MOLLY_RECOVERY_BUTTON_HAX
+       bool "Molly Recovery Button Hack"
+       depends on MACH_MOLLY
+       help
+         Make the rear button function as the KEY_ENTER, instead of KEY_CONNECT, to allow it to be used in recovery
+
 config MACH_MACALLAN
        bool "Macallan board"
        depends on ARCH_TEGRA_11x_SOC
