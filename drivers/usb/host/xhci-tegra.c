@@ -2250,13 +2250,6 @@ static int tegra_xhci_bus_suspend(struct usb_hcd *hcd)
 
 	WARN_ON(tegra->ss_pwr_gated && tegra->host_pwr_gated);
 
-	/* save xhci spec ctx. Already done by xhci_suspend */
-	err = xhci_suspend(tegra->xhci);
-	if (err) {
-		xhci_err(xhci, "%s: xhci_suspend failed %d\n", __func__, err);
-		goto xhci_suspend_failed;
-	}
-
 	/* Powergate host. Include ss power gate if not already done */
 	err = tegra_xhci_host_elpg_entry(tegra);
 	if (err) {
