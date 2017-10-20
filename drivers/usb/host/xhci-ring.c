@@ -2483,17 +2483,14 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			 * warnings.
 			 */
 			if (!(trb_comp_code == COMP_STOP ||
-					trb_comp_code == COMP_STOP_INVAL)) {
-				xhci_warn(xhci, "WARN Event TRB for"\
-				"slot %d ep %d with no TDs queued?\n",
-				TRB_TO_SLOT_ID(le32_to_cpu(event->flags)),
+						trb_comp_code == COMP_STOP_INVAL)) {
+				xhci_warn(xhci, "WARN Event TRB for slot %d ep %d with no TDs queued?\n",
+						TRB_TO_SLOT_ID(le32_to_cpu(event->flags)),
 						ep_index);
-				xhci_dbg(xhci,
-				"Event TRB with TRB type ID %u\n",
+				xhci_dbg(xhci, "Event TRB with TRB type ID %u\n",
 						(le32_to_cpu(event->flags) &
 						 TRB_TYPE_BITMASK)>>10);
-				xhci_print_trb_offsets(xhci,
-					(union xhci_trb *) event);
+				xhci_print_trb_offsets(xhci, (union xhci_trb *) event);
 			}
 			if (ep->skip) {
 				ep->skip = false;
