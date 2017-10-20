@@ -408,11 +408,6 @@ pipe_read(struct kiocb *iocb, const struct iovec *_iov,
 redo:
 			addr = ops->map(pipe, buf, atomic);
 			error = pipe_iov_copy_to_user(iov, addr, &offset,
-/**=======
-redo:
-			addr = ops->map(pipe, buf, atomic);
-			error = pipe_iov_copy_to_user(iov, addr, &buf->offset,
->>>>>>> v3.4.109**/
 						      &remaining, atomic);
 			ops->unmap(pipe, buf, addr);
 			if (unlikely(error)) {
