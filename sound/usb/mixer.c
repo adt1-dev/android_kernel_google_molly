@@ -721,12 +721,15 @@ static int check_input_term(struct mixer_build *state, int id, struct usb_audio_
 		}
 		case UAC1_PROCESSING_UNIT:
 		case UAC1_EXTENSION_UNIT:
+		/* UAC2_PROCESSING_UNIT_V2 */
+		/* UAC2_EFFECT_UNIT */
 		case UAC2_EXTENSION_UNIT_V2: {
 			struct uac_processing_unit_descriptor *d = p1;
+
 			if (state->mixer->protocol == UAC_VERSION_2 &&
 				hdr[2] == UAC2_EFFECT_UNIT) {
 				/* UAC2/UAC1 unit IDs overlap here in an
-				 * incompatible way. Ignore this unit for now.
+				 * uncompatible way. Ignore this unit for now.
 				 */
 				return 0;
 			}
